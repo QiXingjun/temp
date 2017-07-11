@@ -1,0 +1,55 @@
+import jenkins
+import codecs
+
+commandPartOne = 'git clone http://git.code.oa.com/zhikunyao/cdms_git.git\n'+'cp cdms_git/build . -rf\n'+'cp cdms_git/dev . -rf\n'+'rm cdms_git -rf\n'
+commandPartTwo = 'echo ${SVN_REVISION_1}\n'+'export SVN_REVISION=${SVN_REVISION_1}\n'+'export SVN_URL=${SVN_URL_1}\n'
+commandPartThree = 'JENKINS_DIST_PATH=/data/projects/${JOB_NAME}\n'+'DIST_PATH=${JENKINS_DIST_PATH}/${BUILD_NUMBER}\n'+'currentTime=`date \"+%Y%m%d%H%M%S\"`\n'+'build_name=\"${JOB_NAME}-${BUILD_NUMBER}-${currentTime}\"\n'+'export JENKINS_DIST_PATH=${JENKINS_DIST_PATH}\n'+'export DIST_PATH=${DIST_PATH}\n'+'export CIMS_BUILD_NAME=${build_name}\n'
+commandPartFour = 'export CIMS_WEB_PROJECT=true\n'
+commandPartFive = 'bash build/build.sh\n'+'bash build/sync_dist.sh\n'
+
+#commandPartOne = 'commandPartOne'
+#commandPartTwo = 'commandPartTwo'
+#commandPartThree = 'commandPartThree'
+#commandPartFour = 'commandPartFour'
+#commandPartFive = 'commandPartFive'
+command = None;
+
+def get_server():
+    url = 'http://localhost:8888'
+    userName = 'admin';
+    password = 'admin';
+    return jenkins.Jenkins(url,userName,password)
+
+def get_config_xml(jobDescription,scmUrl,gitBranchOrSvnCredentials,assignedNode,pollScm,cimsHost,tapdWorkspaceId,cimsProductName,isSvn,isWebProject):
+    if('git' in scmUrl):
+        input = codecs.open('config_xml_git','r')
+    else:
+        input = codecs.open('config_xml_svn','r')
+    content = input.read()
+    envVariables = "export LANG=\"zh_CN.UTF-8\"\n"+"export CIMS_HOST=\""+cimsHost+"\"\n"+"export TAPD_WORKSPACE_ID=\""+tapdWorkspaceId+"\"\n"+"export COVERITY_PROJECT_ID=\"BIWORKBENCH\"\n"+"export CIMS_PRODUCT_NAME=\""+cimsProductName+"\"\n"
+    if(isSvn == True and isWebProject == True):
+        command = commandPartOne + envVariables + commandPartTwo + commandPartThree + commandPartFour + commandPartFive
+    elif(isSvn == False and isWebProject == False):
+        command = commandPartOne + envVariables + commandPartThree + commandPartFive
+    elif(isSvn == True and isWebProject == False):
+        command = commandPartOne + envVariables + commandPartTwo + commandPartThree + commandPartFive
+    elif(isSvn == False and isWebProject == True):
+        command = commandPartOne + envVariables + commandPartThree + commandPartFour + commandPartFive
+    if(assignedNode==None):
+        assignedNode = 'backup186'
+    if(pollScm == None):
+        pollScm = '*/1 * * * *'
+    content = content%(jobDescription,scmUrl,gitBranchOrSvnCredentials,assignedNode,pollScm,command)
+    print(content)
+    input.close()
+    return content
+
+def get_job_config(jobName):
+    return get_server().get_job_config(jobName)
+
+def create_jenkins_job(jobName,jobDescription,scmUrl,gitBranchOrSvnCredentials,assignedNode,pollScm,cimsHost,tapdWorkspaceId,cimsProductName,isSvn,isWebProject):
+    get_server().create_job(jobName,get_config_xml(jobDescription,scmUrl,gitBranchOrSvnCredentials,assignedNode,pollScm,cimsHost,tapdWorkspaceId,cimsProductName,isSvn,isWebProject))
+
+create_jenkins_job('a6','description123','https://github.com/QiXingjun/sort.git','*/master','slave','H/15 * * * *','http://10.12.12.12:8080','1234567890','productNameTest123',True,True)
+
+print(get_job_config('a5'))
